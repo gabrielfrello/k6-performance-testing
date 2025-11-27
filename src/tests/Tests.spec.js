@@ -4,19 +4,19 @@ import http from 'k6/http';
 import { check } from 'k6';
 import { Trend, Rate } from 'k6/metrics';
 
-export const getContactsDuration = new Trend('get_contacts', true);
-export const RateContentOK = new Rate('content_OK');
+export const getJokeDuration = new Trend('get_joke_duration', true);
+export const rateStatusCode = new Rate('status_code_success');
 
 export const options = {
   thresholds: {
-    http_req_failed: ['rate<0.30'],
-    get_contacts: ['p(99)<500'],
-    content_OK: ['rate>0.95']
+    http_req_failed: ['rate<0.25'],
+    get_joke_duration: ['p(90)<6800'],
+    status_code_success: ['rate>0.75']
   },
   stages: [
-    { duration: '10s', target: 2 },
-    { duration: '10s', target: 4 },
-    { duration: '10s', target: 6 }
+    { duration: '30s', target: 7 },
+    { duration: '120s', target: 92 },
+    { duration: '60s', target: 92 }
   ]
 };
 
@@ -28,23 +28,24 @@ export function handleSummary(data) {
 }
 
 export default function () {
-  const baseUrl = 'https://test.k6.io/';
+  const baseUrl = 'https://v2.jokeapi.dev/joke/Any';
 
   const params = {
     headers: {
-      'Content-Type': 'application/json'
+      'Content-Type': 'application/json',
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36'
     }
   };
 
-  const OK = 200;
+  const res = http.get(baseUrl, params);
 
-  const res = http.get(`${baseUrl}`, params);
+  getJokeDuration.add(res.timings.duration);
 
-  getContactsDuration.add(res.timings.duration);
-
-  RateContentOK.add(res.status === OK);
+  rateStatusCode.add(res.status === 200);
 
   check(res, {
-    'GET Contacts - Status 200': () => res.status === OK
+    'GET Joke - Status 200': () => res.status === 200,
+    'GET Joke - Response time < 6800ms': () => res.timings.duration < 6800,
+    'GET Joke - Has response body': () => res.body.length > 0
   });
 }
